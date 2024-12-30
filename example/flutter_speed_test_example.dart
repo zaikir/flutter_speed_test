@@ -10,5 +10,6 @@ void main() async {
   final speedtest = SpeedTest(args);
   await speedtest.init();
 
-  await speedtest.testDownloadSpeed();
+  final mbps = await speedtest.testDownloadSpeed();
+  print("mbps: $mbps");
 }

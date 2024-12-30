@@ -46,8 +46,14 @@ final class SpeedTestArgs {
   /// Source IP address to bind to (default: null)
   final String? source;
 
-  /// HTTP timeout in seconds (default: 10)
-  final double timeout;
+  /// HTTP timeout (default: 10 seconds)
+  final Duration httpTimeout;
+
+  /// Maximum time to run the test (default: 10 seconds)
+  final Duration duration;
+
+  /// Progress callback interval
+  final Duration progressInterval;
 
   /// Use HTTPS instead of HTTP for speedtest.net servers (default: false)
   final bool secure;
@@ -78,10 +84,12 @@ final class SpeedTestArgs {
     this.exclude = const [],
     this.mini,
     this.source,
-    this.timeout = 10.0,
+    this.httpTimeout = const Duration(seconds: 10),
+    this.duration = const Duration(seconds: 10),
     this.secure = false,
     this.preAllocate = true,
     this.version = false,
     this.debug = false,
+    this.progressInterval = const Duration(milliseconds: 200),
   });
 }
