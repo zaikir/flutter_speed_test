@@ -8,7 +8,7 @@ environment:
 
 # Add regular dependencies here.
 dependencies:
-  http: ^1.2.2
+  dio: ^5.7.0
   pool: ^1.5.1
   xml: ^6.5.0
 

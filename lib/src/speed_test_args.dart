@@ -46,7 +46,7 @@ final class SpeedTestArgs {
   /// Source IP address to bind to (default: null)
   final String? source;
 
-  /// HTTP timeout (default: 10 seconds)
+  /// HTTP timeout (default: 1 seconds)
   final Duration httpTimeout;
 
   /// Maximum time to run the test (default: 10 seconds)
@@ -84,12 +84,12 @@ final class SpeedTestArgs {
     this.exclude = const [],
     this.mini,
     this.source,
-    this.httpTimeout = const Duration(seconds: 10),
+    this.httpTimeout = const Duration(seconds: 1),
     this.duration = const Duration(seconds: 10),
     this.secure = false,
     this.preAllocate = true,
     this.version = false,
     this.debug = false,
-    this.progressInterval = const Duration(milliseconds: 200),
+    this.progressInterval = const Duration(milliseconds: 150),
   });
 }

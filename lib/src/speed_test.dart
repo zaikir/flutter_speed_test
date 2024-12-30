@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_speed_test/flutter_speed_test.dart';
-import 'package:http/http.dart' as http;
 import 'package:pool/pool.dart';
 import 'package:xml/xml.dart';
 
@@ -23,16 +23,19 @@ final class SpeedTest {
     await _getBestServer();
   }
 
-  Future<double> testDownloadSpeed() async {
+  Future<double> testDownloadSpeed(
+      {void Function(double mbps, double progress, double time)? onProgress,
+      Duration? duration}) async {
     if (_bestServer == null) {
       throw Exception('Not initialized');
     }
 
-    final httpClient = _HttpClient(timeout: args.httpTimeout);
+    final httpClient = _getHttpClient(timeout: false);
     final chunksStreamController = StreamController<int>();
 
     Timer? timeoutTimer;
     Timer? progressTimer;
+    Pool? pool;
 
     try {
       final List<String> urls = [];
@@ -54,10 +57,10 @@ final class SpeedTest {
       final tasks = requestsUris.map((uri) {
         return () async {
           try {
-            final request = http.Request('GET', Uri.parse(uri));
-            final streamedResponse = await httpClient.send(request);
+            final streamedResponse = await httpClient.getUri(Uri.parse(uri),
+                options: Options(responseType: ResponseType.stream));
 
-            await for (var chunk in streamedResponse.stream) {
+            await for (var chunk in streamedResponse.data.stream) {
               if (chunksStreamController.isClosed) {
                 break;
               }
@@ -70,7 +73,7 @@ final class SpeedTest {
         };
       });
 
-      final pool = Pool(maxThreads);
+      pool = Pool(maxThreads);
 
       final startTime = DateTime.now().millisecondsSinceEpoch;
       var lastChunkTime = startTime;
@@ -80,7 +83,8 @@ final class SpeedTest {
         lastChunkTime = DateTime.now().millisecondsSinceEpoch;
       });
 
-      timeoutTimer = Timer(args.duration, () {
+      final testDuration = duration ?? args.duration;
+      timeoutTimer = Timer(testDuration, () {
         chunksStreamController.close();
       });
 
@@ -94,33 +98,62 @@ final class SpeedTest {
         return ((totalBytes * 8) / elapsedTime / 1000000);
       }
 
-      progressTimer = Timer.periodic(args.progressInterval, (timer) {
-        final elapsedTime = (DateTime.now().millisecondsSinceEpoch - startTime) / 1000.0;
+      if (onProgress != null) {
+        progressTimer = Timer.periodic(args.progressInterval, (timer) {
+          final elapsedTime = (lastChunkTime - startTime) / 1000.0;
+          final speedMbps = getMbps();
 
-        if (elapsedTime == 0) {
-          return;
-        }
+          onProgress(speedMbps, elapsedTime / testDuration.inSeconds, elapsedTime);
 
-        final speedMbps = getMbps();
-        print('Speed: $speedMbps Mbps. Downloaded: $totalBytes bytes. Elapsed: $elapsedTime s.');
+          if (chunksStreamController.isClosed) {
+            timer.cancel();
+          }
+        });
+      }
 
-        if (chunksStreamController.isClosed) {
-          timer.cancel();
-        }
-      });
-
-      await Future.wait(tasks.map((task) => pool.withResource(task)));
+      await Future.wait(tasks.map((task) => pool!.withResource(task)));
       return getMbps();
     } finally {
       timeoutTimer?.cancel();
       progressTimer?.cancel();
+      await pool?.close();
 
       if (!chunksStreamController.isClosed) {
         chunksStreamController.close();
       }
 
-      httpClient.close();
+      httpClient.close(force: true);
     }
+  }
+
+  String buildUserAgent() {
+    final os = Platform.operatingSystem; // e.g., linux, macos, windows
+    final osVersion = Platform.operatingSystemVersion; // e.g., Linux 5.15.0
+    final architecture =
+        Platform.version.contains('x64') ? 'x64' : 'x86'; // Simplistic architecture detection
+    final dartVersion = Platform.version.split(' ').first;
+
+    // Build User-Agent string
+    return [
+      'Mozilla/5.0',
+      '($os $osVersion; $architecture; en-us)',
+      'Dart/$dartVersion',
+      '(KHTML, like Gecko)',
+      'speedtest-dart/1.0',
+    ].join(' ');
+  }
+
+  Dio _getHttpClient({bool timeout = true}) {
+    return Dio(BaseOptions(
+      sendTimeout: timeout ? args.httpTimeout : null,
+      connectTimeout: timeout ? args.httpTimeout : null,
+      receiveTimeout: timeout ? args.httpTimeout : null,
+      headers: {
+        'User-Agent': buildUserAgent(),
+        'Cache-Control': 'no-cache',
+        'Accept-Encoding': 'gzip',
+      },
+    ));
   }
 
   String _buildRequest({required String uri, String bump = '0'}) {
@@ -134,7 +167,7 @@ final class SpeedTest {
   }
 
   Future<void> _getServers() async {
-    final httpClient = _HttpClient(timeout: args.httpTimeout);
+    final httpClient = _getHttpClient();
 
     try {
       _servers.clear();
@@ -151,13 +184,13 @@ final class SpeedTest {
       for (final url in urls) {
         try {
           final uri = Uri.parse(_buildRequest(uri: '$url?threads=${config.threads.download}'));
-          final response = await httpClient.get(uri);
+          final response = await httpClient.getUri(uri);
 
           if (response.statusCode != 200) {
             throw Exception('HTTP status code: ${response.statusCode}');
           }
 
-          final root = XmlDocument.parse(response.body);
+          final root = XmlDocument.parse(response.data);
           final elements = root.findAllElements('server');
 
           for (final element in elements) {
@@ -217,7 +250,7 @@ final class SpeedTest {
   }
 
   Future<void> _getBestServer() async {
-    final httpClient = _HttpClient(timeout: args.httpTimeout);
+    final httpClient = _getHttpClient();
 
     try {
       final closestServers = await _getClosestServers();
@@ -233,10 +266,10 @@ final class SpeedTest {
 
           try {
             final stopwatch = Stopwatch()..start();
-            final response = await httpClient.get(uri);
+            final response = await httpClient.getUri(uri);
             final latency = stopwatch.elapsedMilliseconds / 1000.0;
 
-            latencies.add(response.statusCode == 200 && response.body.trim() == 'test=test'
+            latencies.add(response.statusCode == 200 && response.data.trim() == 'test=test'
                 ? latency
                 : 3600.0);
           } catch (e) {
@@ -301,18 +334,18 @@ final class SpeedTest {
   double _degreesToRadians(double degrees) => degrees * (pi / 180);
 
   Future<void> _loadConfig() async {
-    final httpClient = _HttpClient(timeout: args.httpTimeout);
+    final httpClient = _getHttpClient();
 
     try {
       final uri = Uri.parse(_buildRequest(uri: 'https://www.speedtest.net/speedtest-config.php'));
 
-      final response = await httpClient.get(uri);
+      final response = await httpClient.getUri(uri);
 
       if (response.statusCode != 200) {
         throw Exception('Failed to retrieve config: ${response.statusCode}');
       }
 
-      final root = XmlDocument.parse(response.body);
+      final root = XmlDocument.parse(response.data);
 
       final settingsRoot = root.getElement('settings')!;
       final serverConfig = settingsRoot.getElement('server-config')?.attributes;
@@ -401,39 +434,4 @@ class _SpeedTestConfig {
 
   _SpeedTestConfig(
       this.ignoreServers, this.sizes, this.counts, this.threads, this.length, this.latLon);
-}
-
-class _HttpClient extends http.BaseClient {
-  final http.Client _inner = http.Client();
-  final Duration timeout;
-  final String userAgent;
-
-  _HttpClient({required this.timeout}) : userAgent = _buildUserAgent();
-
-  static String _buildUserAgent() {
-    final os = Platform.operatingSystem; // e.g., linux, macos, windows
-    final osVersion = Platform.operatingSystemVersion; // e.g., Linux 5.15.0
-    final architecture =
-        Platform.version.contains('x64') ? 'x64' : 'x86'; // Simplistic architecture detection
-    final dartVersion = Platform.version.split(' ').first;
-
-    // Build User-Agent string
-    return [
-      'Mozilla/5.0',
-      '($os $osVersion; $architecture; en-us)',
-      'Dart/$dartVersion',
-      '(KHTML, like Gecko)',
-      'speedtest-dart/1.0',
-    ].join(' ');
-  }
-
-  @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) {
-    request.headers['User-Agent'] = userAgent;
-    request.headers['Cache-Control'] = 'no-cache';
-    request.headers['Accept-Encoding'] = 'gzip';
-
-    // Add a timeout to the request
-    return _inner.send(request).timeout(timeout);
-  }
 }
