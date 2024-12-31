@@ -2,7 +2,7 @@ import 'package:flutter_speed_test/flutter_speed_test.dart';
 import 'package:flutter_speed_test/src/speed_test.dart';
 
 void main() async {
-  const args = SpeedTestArgs(duration: Duration(seconds: 5));
+  const args = SpeedTestArgs(duration: Duration(seconds: 60));
 
   final speedtest = SpeedTest(args);
   await speedtest.init();

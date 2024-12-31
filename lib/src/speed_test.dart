@@ -126,6 +126,52 @@ final class SpeedTest {
     }
   }
 
+  Future<double> testUploadSpeed(
+      {void Function(double mbps, double progress, double time)? onProgress,
+      Duration? duration}) async {
+    if (_bestServer == null) {
+      throw Exception('Not initialized');
+    }
+
+    final httpClient = _getHttpClient(timeout: false);
+    final chunksStreamController = StreamController<int>();
+
+    Timer? timeoutTimer;
+    Timer? progressTimer;
+    Pool? pool;
+
+    try {
+      final List<String> urls = [];
+
+      final uploadSizes = _config!.sizes.upload;
+      final uploadCounts = _config!.counts.upload;
+      final maxThreads = _config!.threads.download;
+
+      final ss = (800 * 100 - 51) * 10;
+
+      final sizes = <int>[];
+      for (final size in uploadSizes) {
+        for (int i = 0; i < uploadCounts; i++) {
+          sizes.add(size);
+        }
+      }
+
+      final requestCount = _config!.uploadMax;
+
+      return 0;
+    } finally {
+      timeoutTimer?.cancel();
+      progressTimer?.cancel();
+      await pool?.close();
+
+      if (!chunksStreamController.isClosed) {
+        chunksStreamController.close();
+      }
+
+      httpClient.close(force: true);
+    }
+  }
+
   String buildUserAgent() {
     final os = Platform.operatingSystem; // e.g., linux, macos, windows
     final osVersion = Platform.operatingSystemVersion; // e.g., Linux 5.15.0
@@ -141,6 +187,24 @@ final class SpeedTest {
       '(KHTML, like Gecko)',
       'speedtest-dart/1.0',
     ].join(' ');
+  }
+
+  Iterable<String> _downloadSpeedUrls(int max) sync* {
+    final downloadSizes = _config!.sizes.download;
+    final downloadCounts = _config!.counts.download;
+
+    var index = 0;
+    while (true) {
+      for (final size in downloadSizes) {
+        for (int i = 0; i < downloadCounts; i++) {
+          final uri =
+              _buildRequest(uri: '${_bestServer!.url}/random${size}x$size.jpg', bump: '$index');
+          yield uri;
+
+          index++;
+        }
+      }
+    }
   }
 
   Dio _getHttpClient({bool timeout = true}) {
@@ -375,7 +439,7 @@ final class SpeedTest {
           [350, 500, 750, 1000, 1500, 2000, 2500, 3000, 3500, 4000], upSizes.sublist(ratio - 1));
 
       final sizeCount = sizes.upload.length;
-      final uploadCount = (uploadMax / sizeCount).floor();
+      final uploadCount = (uploadMax / sizeCount).ceil();
 
       final counts = _SpeedTestConfigValues(
           int.parse(downloadConfig.firstWhere((attr) => attr.name.local == 'threadsperurl').value),
@@ -399,8 +463,9 @@ final class SpeedTest {
       }
 
       final latLon = (clientLat, clientLon);
-
-      _config = _SpeedTestConfig(ignoreServers, sizes, counts, threads, length, latLon);
+      final resultUploadMax = uploadCount * sizeCount;
+      _config =
+          _SpeedTestConfig(ignoreServers, sizes, counts, threads, length, latLon, resultUploadMax);
     } finally {
       httpClient.close();
     }
@@ -431,7 +496,8 @@ class _SpeedTestConfig {
   final _SpeedTestConfigValues<int> threads;
   final _SpeedTestConfigValues<int> length;
   final (double, double) latLon;
+  final int uploadMax;
 
-  _SpeedTestConfig(
-      this.ignoreServers, this.sizes, this.counts, this.threads, this.length, this.latLon);
+  _SpeedTestConfig(this.ignoreServers, this.sizes, this.counts, this.threads, this.length,
+      this.latLon, this.uploadMax);
 }

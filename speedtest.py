@@ -873,7 +873,7 @@ class HTTPUploaderData(object):
 
     def read(self, n=10240):
         if ((timeit.default_timer() - self.start) <= self.timeout and
-                not event_is_set(self._shutdown_event)):
+not event_is_set(self._shutdown_event)):
             chunk = self.data.read(n)
             self.total.append(len(chunk))
             return chunk
