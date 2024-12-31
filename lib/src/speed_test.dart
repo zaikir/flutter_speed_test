@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_speed_test/flutter_speed_test.dart';
@@ -36,6 +37,7 @@ final class SpeedTest {
     Timer? timeoutTimer;
     Timer? progressTimer;
     Pool? pool;
+    final cancelToken = CancelToken();
 
     try {
       final List<String> urls = [];
@@ -58,7 +60,7 @@ final class SpeedTest {
         return () async {
           try {
             final streamedResponse = await httpClient.getUri(Uri.parse(uri),
-                options: Options(responseType: ResponseType.stream));
+                options: Options(responseType: ResponseType.stream), cancelToken: cancelToken);
 
             await for (var chunk in streamedResponse.data.stream) {
               if (chunksStreamController.isClosed) {
@@ -85,22 +87,13 @@ final class SpeedTest {
 
       timeoutTimer = Timer(testDuration, () {
         chunksStreamController.close();
+        cancelToken.cancel();
       });
-
-      double getMbps() {
-        final elapsedTime = (lastChunkTime - startTime) / 1000.0;
-
-        if (elapsedTime == 0) {
-          return 0;
-        }
-
-        return ((totalBytes * 8) / elapsedTime / 1000000);
-      }
 
       if (onProgress != null) {
         progressTimer = Timer.periodic(args.progressInterval, (timer) {
           final elapsedTime = (lastChunkTime - startTime) / 1000.0;
-          final speedMbps = getMbps();
+          final speedMbps = _getMbps(totalBytes, startTime, lastChunkTime);
 
           onProgress(speedMbps, elapsedTime / testDuration.inSeconds, elapsedTime);
 
@@ -111,7 +104,7 @@ final class SpeedTest {
       }
 
       await Future.wait(tasks.map((task) => pool!.withResource(task)));
-      return getMbps();
+      return _getMbps(totalBytes, startTime, lastChunkTime);
     } finally {
       timeoutTimer?.cancel();
       progressTimer?.cancel();
@@ -119,6 +112,7 @@ final class SpeedTest {
 
       if (!chunksStreamController.isClosed) {
         chunksStreamController.close();
+        cancelToken.cancel();
       }
 
       httpClient.close(force: true);
@@ -138,6 +132,7 @@ final class SpeedTest {
     Timer? timeoutTimer;
     Timer? progressTimer;
     Pool? pool;
+    final cancelToken = CancelToken();
 
     try {
       final List<String> urls = [];
@@ -145,8 +140,7 @@ final class SpeedTest {
       final uploadSizes = _config!.sizes.upload;
       final uploadCounts = _config!.counts.upload;
       final maxThreads = _config!.threads.download;
-
-      final ss = (800 * 100 - 51) * 10;
+      final testDuration = duration ?? args.duration;
 
       final sizes = <int>[];
       for (final size in uploadSizes) {
@@ -155,9 +149,65 @@ final class SpeedTest {
         }
       }
 
-      final requestCount = _config!.uploadMax;
+      final contentLength = sizes[0];
+      final randomData = Uint8List(contentLength);
 
-      return 0;
+      final tasks = sizes.map((uri) {
+        return () async {
+          try {
+            var prevCount = 0;
+            await httpClient.postUri(Uri.parse(_bestServer!.url),
+                options: Options(headers: {
+                  'Content-Length': '$contentLength',
+                  'Content-Type': 'application/octet-stream'
+                }),
+                data: randomData,
+                cancelToken: cancelToken, onSendProgress: (count, total) {
+              if (!chunksStreamController.isClosed) {
+                chunksStreamController.add(count - prevCount);
+                prevCount = count;
+              }
+            });
+
+            if (!chunksStreamController.isClosed) {
+              chunksStreamController.add(contentLength - prevCount);
+            }
+          } catch (e) {
+            // ignore
+          }
+        };
+      });
+
+      pool = Pool(maxThreads);
+
+      final startTime = DateTime.now().millisecondsSinceEpoch;
+      var lastChunkTime = startTime;
+      var totalBytes = 0;
+      chunksStreamController.stream.listen((chunkLength) {
+        totalBytes += chunkLength;
+        lastChunkTime = DateTime.now().millisecondsSinceEpoch;
+      });
+
+      timeoutTimer = Timer(testDuration, () {
+        chunksStreamController.close();
+        cancelToken.cancel();
+      });
+
+      if (onProgress != null) {
+        progressTimer = Timer.periodic(args.progressInterval, (timer) {
+          final elapsedTime = (lastChunkTime - startTime) / 1000.0;
+          final speedMbps = _getMbps(totalBytes, startTime, lastChunkTime);
+
+          onProgress(speedMbps, elapsedTime / testDuration.inSeconds, elapsedTime);
+
+          if (chunksStreamController.isClosed) {
+            timer.cancel();
+          }
+        });
+      }
+
+      await Future.wait(tasks.map((task) => pool!.withResource(task)));
+      return _getMbps(totalBytes, startTime, lastChunkTime);
     } finally {
       timeoutTimer?.cancel();
       progressTimer?.cancel();
@@ -165,13 +215,20 @@ final class SpeedTest {
 
       if (!chunksStreamController.isClosed) {
         chunksStreamController.close();
+        cancelToken.cancel();
       }
 
       httpClient.close(force: true);
     }
   }
 
-  String buildUserAgent() {
+  double _getMbps(int totalBytes, int startTime, int endTime) {
+    final elapsedTime = (endTime - startTime) / 1000.0;
+
+    return elapsedTime == 0 ? 0 : ((totalBytes * 8) / elapsedTime / 1000000);
+  }
+
+  String _buildUserAgent() {
     final os = Platform.operatingSystem; // e.g., linux, macos, windows
     final osVersion = Platform.operatingSystemVersion; // e.g., Linux 5.15.0
     final architecture =
@@ -188,31 +245,13 @@ final class SpeedTest {
     ].join(' ');
   }
 
-  Iterable<String> _downloadSpeedUrls(int max) sync* {
-    final downloadSizes = _config!.sizes.download;
-    final downloadCounts = _config!.counts.download;
-
-    var index = 0;
-    while (true) {
-      for (final size in downloadSizes) {
-        for (int i = 0; i < downloadCounts; i++) {
-          final uri =
-              _buildRequest(uri: '${_bestServer!.url}/random${size}x$size.jpg', bump: '$index');
-          yield uri;
-
-          index++;
-        }
-      }
-    }
-  }
-
   Dio _getHttpClient({bool timeout = true}) {
     return Dio(BaseOptions(
       sendTimeout: timeout ? args.httpTimeout : null,
       connectTimeout: timeout ? args.httpTimeout : null,
       receiveTimeout: timeout ? args.httpTimeout : null,
       headers: {
-        'User-Agent': buildUserAgent(),
+        'User-Agent': _buildUserAgent(),
         'Cache-Control': 'no-cache',
         'Accept-Encoding': 'gzip',
       },
@@ -429,40 +468,20 @@ final class SpeedTest {
           .expand((list) => list)
           .toList();
 
-      final ratio = int.parse(uploadConfig.firstWhere((attr) => attr.name.local == 'ratio').value);
       final uploadMax =
           int.parse(uploadConfig.firstWhere((attr) => attr.name.local == 'maxchunkcount').value);
 
-      final upSizes = [
-        32768,
-        65536,
-        131072,
-        262144,
-        524288,
-        1048576,
-        7340032,
-        ...Iterable.generate(50, (i) => 7340032)
-      ];
-      final sizes = _SpeedTestConfigValues([
-        350,
-        500,
-        750,
-        1000,
-        1500,
-        2000,
-        2500,
-        3000,
-        3500,
-        4000,
-        ...Iterable.generate(50, (i) => 4000)
-      ], upSizes.sublist(ratio - 1));
+      final sizes = _SpeedTestConfigValues(
+        Iterable.generate(100, (i) => 4000).toList(),
+        Iterable.generate(100, (i) => (800 * 100 - 51) * 10).toList(),
+      );
 
       final sizeCount = sizes.upload.length;
       final uploadCount = (uploadMax / sizeCount).ceil();
 
       final counts = _SpeedTestConfigValues(
           int.parse(downloadConfig.firstWhere((attr) => attr.name.local == 'threadsperurl').value),
-          uploadCount);
+          int.parse(uploadConfig.firstWhere((attr) => attr.name.local == 'threadsperurl').value));
 
       final threads = _SpeedTestConfigValues(
           int.parse(serverConfig.firstWhere((attr) => attr.name.local == 'threadcount').value) * 2,

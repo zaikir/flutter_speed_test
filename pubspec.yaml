@@ -8,6 +8,7 @@ environment:
 
 # Add regular dependencies here.
 dependencies:
+  concurrent_queue: ^1.4.0
   dio: ^5.7.0
   pool: ^1.5.1
   xml: ^6.5.0
