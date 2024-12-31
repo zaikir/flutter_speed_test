@@ -43,11 +43,11 @@ final class SpeedTest {
       final downloadSizes = _config!.sizes.download;
       final downloadCounts = _config!.counts.download;
       final maxThreads = _config!.threads.download;
+      final testDuration = duration ?? args.duration;
 
       for (final size in downloadSizes) {
         for (int i = 0; i < downloadCounts; i++) {
-          final uri = '${_bestServer!.url}/random${size}x$size.jpg';
-          urls.add(uri);
+          urls.add('${_bestServer!.url}/random${size}x$size.jpg');
         }
       }
 
@@ -83,7 +83,6 @@ final class SpeedTest {
         lastChunkTime = DateTime.now().millisecondsSinceEpoch;
       });
 
-      final testDuration = duration ?? args.duration;
       timeoutTimer = Timer(testDuration, () {
         chunksStreamController.close();
       });
@@ -434,9 +433,29 @@ final class SpeedTest {
       final uploadMax =
           int.parse(uploadConfig.firstWhere((attr) => attr.name.local == 'maxchunkcount').value);
 
-      final upSizes = [32768, 65536, 131072, 262144, 524288, 1048576, 7340032];
-      final sizes = _SpeedTestConfigValues(
-          [350, 500, 750, 1000, 1500, 2000, 2500, 3000, 3500, 4000], upSizes.sublist(ratio - 1));
+      final upSizes = [
+        32768,
+        65536,
+        131072,
+        262144,
+        524288,
+        1048576,
+        7340032,
+        ...Iterable.generate(50, (i) => 7340032)
+      ];
+      final sizes = _SpeedTestConfigValues([
+        350,
+        500,
+        750,
+        1000,
+        1500,
+        2000,
+        2500,
+        3000,
+        3500,
+        4000,
+        ...Iterable.generate(50, (i) => 4000)
+      ], upSizes.sublist(ratio - 1));
 
       final sizeCount = sizes.upload.length;
       final uploadCount = (uploadMax / sizeCount).ceil();
