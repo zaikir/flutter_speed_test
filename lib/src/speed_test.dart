@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_speed_test/flutter_speed_test.dart';
 import 'package:pool/pool.dart';
+import 'package:xml/xml.dart';
 
 final class SpeedTest {
   SpeedTest(this.args);
@@ -15,7 +16,6 @@ final class SpeedTest {
   _SpeedTestConfig? _config;
   final Map<double, List<SpeedTestServer>> _servers = {};
   SpeedTestServer? _bestServer;
-  double? _bestServerLatency;
 
   Future<void> init() async {
     await _loadConfig();
@@ -379,7 +379,6 @@ final class SpeedTest {
 
       final bestLatency = results.keys.reduce(min);
       _bestServer = results[bestLatency]!;
-      _bestServerLatency = bestLatency;
     } finally {
       httpClient.close();
     }
