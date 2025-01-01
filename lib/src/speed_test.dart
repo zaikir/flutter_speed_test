@@ -6,7 +6,6 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_speed_test/flutter_speed_test.dart';
 import 'package:pool/pool.dart';
-import 'package:xml/xml.dart';
 
 final class SpeedTest {
   SpeedTest(this.args);
@@ -135,8 +134,6 @@ final class SpeedTest {
     final cancelToken = CancelToken();
 
     try {
-      final List<String> urls = [];
-
       final uploadSizes = _config!.sizes.upload;
       final uploadCounts = _config!.counts.upload;
       final maxThreads = _config!.threads.download;
@@ -275,31 +272,24 @@ final class SpeedTest {
       _servers.clear();
 
       const urls = [
-        'https://www.speedtest.net/speedtest-servers-static.php',
-        'http://c.speedtest.net/speedtest-servers-static.php',
-        'https://www.speedtest.net/speedtest-servers.php',
-        'http://c.speedtest.net/speedtest-servers.php',
+        'https://www.speedtest.net/api/js/servers?engine=js&limit=10&https_functional=true',
       ];
 
       final config = _config!;
 
       for (final url in urls) {
         try {
-          final uri = Uri.parse(_buildRequest(uri: '$url?threads=${config.threads.download}'));
+          final uri = Uri.parse(_buildRequest(uri: url));
           final response = await httpClient.getUri(uri);
 
           if (response.statusCode != 200) {
             throw Exception('HTTP status code: ${response.statusCode}');
           }
 
-          final root = XmlDocument.parse(response.data);
-          final elements = root.findAllElements('server');
+          final List<dynamic> servers = response.data;
 
-          for (final element in elements) {
-            final attributesMap = Map.fromEntries(
-                element.attributes.map((attr) => MapEntry(attr.name.local, attr.value)));
-
-            final id = int.tryParse(attributesMap['id'] ?? '');
+          for (final server in servers) {
+            final id = int.tryParse(server['id'] ?? '');
             if (id == null) continue;
 
             if (args.server.isNotEmpty && !args.server.contains(id)) {
@@ -314,20 +304,20 @@ final class SpeedTest {
               final distance = _calculateDistance(
                 config.latLon,
                 (
-                  double.parse(attributesMap['lat'] ?? '0'),
-                  double.parse(attributesMap['lon'] ?? '0'),
+                  double.parse(server['lat'] ?? '0'),
+                  double.parse(server['lon'] ?? '0'),
                 ),
               );
-              attributesMap['d'] = distance.toString();
 
               if (!_servers.containsKey(distance)) {
                 _servers[distance] = [];
               }
+
               _servers[distance]!.add(SpeedTestServer(
                 id: id,
                 distance: distance,
-                name: attributesMap['name'] ?? 'Unknown',
-                url: attributesMap['url']!,
+                name: server['name'] ?? 'Unknown',
+                url: server['url']!,
               ));
             } catch (e) {
               continue;
