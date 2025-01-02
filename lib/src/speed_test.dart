@@ -4,7 +4,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:dart_ping/dart_ping.dart';
-// import 'package:dart_ping_ios/dart_ping_ios.dart';
+import 'package:dart_ping_ios/dart_ping_ios.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_speed_test/flutter_speed_test.dart';
 import 'package:pool/pool.dart';
@@ -25,7 +25,7 @@ final class SpeedTest {
     await _getBestServer();
 
     if (Platform.isIOS) {
-      // DartPingIOS.register();
+      DartPingIOS.register();
     }
   }
 
