@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:dart_ping/dart_ping.dart';
+// import 'package:dart_ping_ios/dart_ping_ios.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_speed_test/flutter_speed_test.dart';
 import 'package:pool/pool.dart';
@@ -21,6 +23,10 @@ final class SpeedTest {
     await _loadConfig();
     await _getServers();
     await _getBestServer();
+
+    if (Platform.isIOS) {
+      // DartPingIOS.register();
+    }
   }
 
   Future<double> testDownloadSpeed(
@@ -217,6 +223,45 @@ final class SpeedTest {
 
       httpClient.close(force: true);
     }
+  }
+
+  Future<double> testPing(
+      {String? url,
+      void Function(int ms, double progress, int index)? onProgress,
+      int? numberOfPings}) async {
+    final testUrl = url ?? _bestServer?.url;
+    if (testUrl == null) {
+      throw Exception('Not initialized');
+    }
+
+    final count = numberOfPings ?? args.numberOfPings;
+    final ping = Ping('google.com', count: count);
+
+    final pings = <int>[];
+
+    var index = 0;
+    await for (final event in ping.stream) {
+      index++;
+
+      print(event);
+
+      if (event.error != null) {
+        print('Ping error: ${event.error}');
+        continue;
+      }
+
+      if (event.response == null || event.response!.time == null) {
+        print('Ping error: no response');
+        continue;
+      }
+
+      final ms = event.response!.time!.inMilliseconds;
+      onProgress?.call(ms, (index - 1) / count, (index - 1));
+
+      pings.add(ms);
+    }
+
+    return pings.isNotEmpty ? pings.reduce((a, b) => a + b) / pings.length : 0;
   }
 
   double _getMbps(int totalBytes, int startTime, int endTime) {

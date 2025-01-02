@@ -55,6 +55,9 @@ final class SpeedTestArgs {
   /// Progress callback interval
   final Duration progressInterval;
 
+  /// Number of pings to perform for ping test (default: 10)
+  final int numberOfPings;
+
   /// Use HTTPS instead of HTTP for speedtest.net servers (default: false)
   final bool secure;
 
@@ -91,5 +94,6 @@ final class SpeedTestArgs {
     this.version = false,
     this.debug = false,
     this.progressInterval = const Duration(milliseconds: 150),
+    this.numberOfPings = 10,
   });
 }
