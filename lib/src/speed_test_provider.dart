@@ -108,7 +108,7 @@ class SpeedTestProviderState extends State<SpeedTestProvider> {
         });
       }
 
-      if (!widget._speedTest.args.ping) {
+      if (widget._speedTest.args.ping) {
         final ping =
             await widget._speedTest.testPing(onProgress: (int ms, double progress, int index) {
           progressController

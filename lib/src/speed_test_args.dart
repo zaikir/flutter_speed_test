@@ -25,7 +25,7 @@ final class SpeedTestArgs {
   /// Progress callback interval
   final Duration progressInterval;
 
-  /// Number of pings to perform for ping test (default: 10)
+  /// Number of pings to perform for ping test (default: 5)
   final int numberOfPings;
 
   /// Constructor with named parameters and default values
@@ -38,6 +38,6 @@ final class SpeedTestArgs {
     this.httpTimeout = const Duration(seconds: 3),
     this.duration = const Duration(seconds: 10),
     this.progressInterval = const Duration(milliseconds: 150),
-    this.numberOfPings = 10,
+    this.numberOfPings = 5,
   });
 }
