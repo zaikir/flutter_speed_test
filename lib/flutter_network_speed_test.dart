@@ -3,3 +3,4 @@ library;
 
 export 'src/speed_test.dart';
 export 'src/speed_test_args.dart';
+export 'src/speed_test_provider.dart';
