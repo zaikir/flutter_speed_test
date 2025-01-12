@@ -1,4 +1,4 @@
-import 'package:flutter_speed_test/flutter_speed_test.dart';
+import 'package:flutter_network_speed_test/flutter_network_speed_test.dart';
 
 void main() async {
   const args = SpeedTestArgs(duration: Duration(seconds: 1));

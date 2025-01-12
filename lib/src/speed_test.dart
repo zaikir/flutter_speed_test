@@ -6,7 +6,7 @@ import 'dart:typed_data';
 import 'package:dart_ping/dart_ping.dart';
 import 'package:dart_ping_ios/dart_ping_ios.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter_speed_test/flutter_speed_test.dart';
+import 'package:flutter_network_speed_test/flutter_network_speed_test.dart';
 import 'package:pool/pool.dart';
 import 'package:xml/xml.dart';
 

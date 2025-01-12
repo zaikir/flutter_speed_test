@@ -1,13 +1,16 @@
-name: flutter_speed_test
-description: A starting point for Dart libraries or applications.
+name: flutter_network_speed_test
+description: A library for testing internet speed.
 version: 0.1.0
-# repository: https://github.com/my_org/my_repo
+repository: https://github.com/zaikir/flutter_speed_test
 
 environment:
   sdk: ^3.6.0
+  flutter: ">=3.24.0"
 
 # Add regular dependencies here.
 dependencies:
+  flutter:
+    sdk: flutter
   dart_ping: ^9.0.1
   dart_ping_ios: ^4.0.2
   dio: ^5.7.0

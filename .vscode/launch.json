@@ -5,10 +5,10 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "flutter_speed_test",
+      "name": "flutter_network_speed_test",
       "request": "launch",
       "type": "dart",
-      "program": "./example/flutter_speed_test_example.dart",
+      "program": "./example/flutter_network_speed_test_example.dart",
     }
   ]
 }
