@@ -20,12 +20,16 @@ final class SpeedTest {
   SpeedTestServer? _bestServer;
 
   Future<void> init() async {
-    await _loadConfig();
-    await _getServers();
-    await _getBestServer();
+    try {
+      await _loadConfig();
+      await _getServers();
+      await _getBestServer();
 
-    if (Platform.isIOS) {
-      DartPingIOS.register();
+      if (Platform.isIOS) {
+        DartPingIOS.register();
+      }
+    } catch (e) {
+      // print(e);
     }
   }
 
