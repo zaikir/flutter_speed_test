@@ -580,6 +580,10 @@ Future<double> testPing(
     {required String url,
     void Function(int ms, double progress, int index)? onProgress,
     int? numberOfPings}) async {
+  if (Platform.isIOS) {
+    DartPingIOS.register();
+  }
+
   final count = numberOfPings ?? 3;
   final ping = Ping(url, count: count);
 
