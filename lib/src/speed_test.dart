@@ -247,8 +247,6 @@ final class SpeedTest {
     await for (final event in ping.stream) {
       index++;
 
-      print(event);
-
       if (event.error != null) {
         print('Ping error: ${event.error}');
         continue;
@@ -576,4 +574,34 @@ class _SpeedTestConfig {
 
   _SpeedTestConfig(this.ignoreServers, this.sizes, this.counts, this.threads, this.length,
       this.latLon, this.uploadMax);
+}
+
+Future<double> testPing(
+    {required String url,
+    void Function(int ms, double progress, int index)? onProgress,
+    int? numberOfPings}) async {
+  final count = numberOfPings ?? 3;
+  final ping = Ping(url, count: count);
+
+  final pings = <int>[];
+
+  var index = 0;
+  await for (final event in ping.stream) {
+    index++;
+
+    if (event.error != null) {
+      continue;
+    }
+
+    if (event.response == null || event.response!.time == null) {
+      continue;
+    }
+
+    final ms = event.response!.time!.inMilliseconds;
+    onProgress?.call(ms, (index - 1) / count, (index - 1));
+
+    pings.add(ms);
+  }
+
+  return pings.isNotEmpty ? pings.reduce((a, b) => a + b) / pings.length : 0;
 }
