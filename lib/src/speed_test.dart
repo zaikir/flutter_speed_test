@@ -576,7 +576,7 @@ class _SpeedTestConfig {
       this.latLon, this.uploadMax);
 }
 
-Future<double> testPing(
+Future<double?> testPing(
     {required String url,
     void Function(int ms, double progress, int index)? onProgress,
     int? numberOfPings}) async {
@@ -607,5 +607,5 @@ Future<double> testPing(
     pings.add(ms);
   }
 
-  return pings.isNotEmpty ? pings.reduce((a, b) => a + b) / pings.length : 0;
+  return pings.isNotEmpty ? pings.reduce((a, b) => a + b) / pings.length : null;
 }
