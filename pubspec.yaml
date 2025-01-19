@@ -1,6 +1,6 @@
 name: flutter_network_speed_test
 description: A library for testing internet speed.
-version: 0.1.4
+version: 0.1.5
 repository: https://github.com/zaikir/flutter_speed_test
 
 environment:

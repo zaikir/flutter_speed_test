@@ -25,8 +25,9 @@ final class SpeedTest {
       await _getServers();
       await _getBestServer();
 
-      if (Platform.isIOS) {
+      if (!_isIosInited && Platform.isIOS) {
         DartPingIOS.register();
+        _isIosInited = true;
       }
     } catch (e) {
       // print(e);
@@ -580,8 +581,9 @@ Future<double?> testPing(
     {required String url,
     void Function(int ms, double progress, int index)? onProgress,
     int? numberOfPings}) async {
-  if (Platform.isIOS) {
+  if (!_isIosInited && Platform.isIOS) {
     DartPingIOS.register();
+    _isIosInited = true;
   }
 
   final count = numberOfPings ?? 3;
@@ -609,3 +611,5 @@ Future<double?> testPing(
 
   return pings.isNotEmpty ? pings.reduce((a, b) => a + b) / pings.length : null;
 }
+
+var _isIosInited = false;
